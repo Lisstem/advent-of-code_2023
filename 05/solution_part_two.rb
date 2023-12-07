@@ -1,3 +1,5 @@
+# Brute force version, very slow (>24h tun time), but IT WORKS :D
+
 class CategoryMap
     attr_reader :from, :to
     
@@ -27,10 +29,10 @@ end
 
 class Almanac
     CATEGORIES = %w{seed soil fertilizer water light temperature humidity location}
-    SEED_REGEX = Regexp.new /^seeds:(?<seeds>(\s+\d+)+)\s*$/
+    SEED_REGEX = Regexp.new /^seeds:(?<seeds>(\s+\d+\s+\d+)+)\s*$/
     MAP_START_REGEX = Regexp.new /^(?<from>(#{CATEGORIES.join("|")}))-to-(?<to>(#{CATEGORIES.join("|")}))\s+map:\s*$/
     MAP_ENTRY_REGEX = Regexp.new /^(?<destination>\d+)\s+(?<source>\d+)\s+(?<length>\d+)\s*$/
-
+    attr_accessor :maps, :seeds
     def initialize(filename)
         @maps = {}
         parse(filename)
@@ -38,8 +40,8 @@ class Almanac
 
     def parse_seeds(file, match)
         raw = match.named_captures["seeds"]
-        @seeds = raw.strip.split(/\s+/).map(&:to_i)
-        
+        @seeds = raw.strip.split(/\s+/).map(&:to_i).each_slice(2).map { |start, length| (start...start+length) }
+        @seed_count = @seeds.map{|range| range.last - range.first }.sum
         if file.eof?
             nil
         else
@@ -90,11 +92,9 @@ class Almanac
     end
     
     def propagate_seeds()
-        @seeds.map{|seed| propagate(seed, "seed") }
+        @seeds.map(&:each_entry).reduce(:chain).each_with_index.lazy.map{|seed, i| puts "#{i+1} of #{@seed_count}"; propagate(seed, "seed") }
     end
 end
 
-almanc = Almanac.new("input.txt")
-locations = almanc.propagate_seeds().select { |_, category| category == "location" }
-puts locations.inspect
-puts locations.map {|no, _| no }.min
+almanac = Almanac.new("input.txt")
+puts locations = almanac.propagate_seeds().select { |_, category| category == "location" }.map {|no, _| no }.min
